@@ -1,0 +1,151 @@
+---
+title: "activity"
+author: "Prasad Sripragada"
+date: "January 31, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Activity monitoring measures 
+
+-Data is collected through electronic gadgets
+-Data represents the steps taken on a day for every 5 min interval
+-Data is storedin activy.csv file
+
+###Loading the data
+```{r echo=FALSE}
+setwd("C:/coursera/datascience/Activity_monitoring_data")
+
+activity <- read.csv("activity.csv")
+```
+
+### Check the data summary
+```{r echo=TRUE}
+summary(activity)
+```
+
+### Histogram of steps take each day
+- Aggregate the sum of the steps taken on each day
+- We are using sqldf library for this operation
+- Plotting the histogram on the aggregated dataset
+
+```{r echo=FALSE}
+library(sqldf)
+```
+
+```{r echo=FALSE}
+
+activity_per_day<-sqldf("select date,sum(steps) as TotalSteps from activity group by date")
+activity_per_day$date<-as.Date(activity_per_day$date)
+
+
+```
+
+```{r echo=TRUE}
+hist(activity_per_day$TotalSteps, breaks = 5,main="Steps taken each day", col="brown")
+```
+
+
+###Mean and Median of the steps taken 
+```{r echo=TRUE}
+steps_mean<-mean(activity$steps, na.rm = TRUE)
+steps_median <- median(activity$steps, na.rm = TRUE)
+
+
+```
+
+Mean is `r steps_mean` and median is `r steps_median`
+
+###Time series plot of average no of steps taken
+- We use sqldf library to aggregate data
+- Data is aggregate on interval and taking avg no of steps taken in those intervals
+
+```{r echo=TRUE}
+activity_mean_per_interval<-sqldf("select interval, avg(steps) AvgSteps from activity group by interval")
+plot(activity_mean_per_interval$interval,activity_mean_per_interval$AvgSteps, type="l", main="Avg steps per interval")
+
+```
+
+###check which interval contains the max no of steps
+```{r echo=FALSE}
+max_interval <-sqldf("select interval from activity_mean_per_interval 
+                     where AvgSteps=(select max(AvgSteps) from activity_mean_per_interval)")
+
+```
+
+The interval which contains the max no of steps is : `max_interval`
+
+
+###Imputing the missing values in the data - the strategy applied
+- Imputing on missing values is done on taking the avg steps from the intervals
+- Impute the avg steps value from the non missing data average aggregated on intervals
+- Seperate the missing value data and combine with avg values
+- Once values are imputed combine with the non missing values data
+
+```{r echo=FALSE}
+activity_na <-sqldf("select * from activity where steps is null")
+activity_not_na <-sqldf("select * from activity where steps is not null")
+
+```
+- On above code we seperated missing value data and non missing value data
+- In following steps we make a new set by joining missing value data with average steps by interval data
+
+```{r echo=FALSE}
+activity_imputed <-sqldf("select b.AvgSteps as steps,a.date,a.interval from activity_na as a 
+inner join activity_mean_per_interval as b on a.interval=b.interval")
+
+```
+
+- Now we combine the imputed data with missing values data
+```{r echo=FALSE}
+activity_combined<- rbind(activity_imputed,activity_not_na)
+```
+
+###Plot a histogram after imputing date- no of steps on each day
+```{r echo=TRUE}
+activity_combined_per_day<-sqldf("select date,sum(steps) as TotalSteps from activity_combined group by date")
+activity_combined_per_day$date<-as.Date(activity_combined_per_day$date)
+hist(activity_combined_per_day$TotalSteps, breaks = 5,main="Steps taken each day", col="brown")
+
+```
+
+###plot time series graph on imputed data by weekdays and weekends
+- First make a new variable to name the day of the week on data variable
+```{r echo=FALSE}
+activity_combined$date<-as.Date(activity_combined$date)
+
+activity_combined$weekday<-weekdays(activity_combined$date)
+
+```
+
+- Seperate the data sets based on weekdays and weekends
+```{r echo=FALSE}
+activity_weekday<-sqldf("select interval, avg(steps) AvgSteps from activity_combined where weekday not in ('Saturday','Sunday') group by interval")
+activity_weekend<-sqldf("select interval, avg(steps) AvgSteps from activity_combined where weekday  in ('Saturday','Sunday') group by interval")
+
+```
+
+- Plot a graph
+```{r echo=TRUE}
+par(mfrow=c(2,1))
+
+plot(activity_weekday$interval,activity_weekday$AvgSteps, type="l", main="Weekday avg steps in interval")
+plot(activity_weekend$interval,activity_weekday$AvgSteps, type="l", main="Weekend avg steps in interval")
+
+```
+
+###Has the mean and median changed after imputing
+```{r echo=TRUE}
+steps_mean_imputed<-mean(activity_combined$steps)
+steps_median_imputed <- median(activity_combined$steps)
+
+change_mean<-steps_mean - steps_mean_imputed
+change_median<-steps_median - steps_median_imputed
+
+```
+
+change in mean is `r change_mean` and change in median is ` r change_median`
+
